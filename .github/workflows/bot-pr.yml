@@ -1,25 +1,37 @@
-name: Bot PR
-on: workflow_dispatch
+name: Bot PR Generator
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: 'Number of PRs to create'
+        required: true
+        default: '40'
 
 jobs:
-  create-pr:
+  create-prs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - name: Make change
-        run: |
-          git checkout -b "bot-test-${{ github.run_id }}"
-          echo "bot test ${{ github.run_id }}" >> bot.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add bot.txt
-          git commit -m "chore: bot automated test"
-          git push origin "bot-test-${{ github.run_id }}"
-      - name: Open PR
+      - name: Generate PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COUNT: ${{ github.event.inputs.count }}
         run: |
-          gh pr create --title "chore: bot automated review target" --body "PR for review metrics" --head "bot-test-${{ github.run_id }}" --base main
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          for i in $(seq 1 $COUNT); do
+            BRANCH="review-target-$i"
+            git checkout -b "$BRANCH"
+            echo "review task $i" >> review_tasks.txt
+            git add review_tasks.txt
+            git commit -m "chore: automated code review candidate $i"
+            git push origin "$BRANCH"
+
+            gh pr create --title "chore: code review item $i" --body "Target for architectural review $i" --head "$BRANCH" --base main
+            git checkout main
+            sleep 1
+          done
